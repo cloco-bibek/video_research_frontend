@@ -14,7 +14,6 @@ const VideoCall = () => {
     };
 
     useEffect(() => {
-        // Initialize WebSocket connection
         const socket = new WebSocket("ws://localhost:8000/ws");
         setSocket(socket);
 
