@@ -1,27 +1,20 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
-
-// interface PeerConnection {
-//     pc: RTCPeerConnection;
-//     remoteStream: MediaStream | null;
-// }
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || `ws://${window.location.hostname}:8000/ws`;
 
 export default function VideoCall() {
-    // State and Refs
     const [roomId, setRoomId] = useState<string>('');
     const [isConnected, setIsConnected] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState<string>('disconnected');
     const [isCameraOn, setIsCameraOn] = useState(false);
     const [isMicOn, setIsMicOn] = useState(false);
 
-    // Refs for video elements and connections
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
     const wsRef = useRef<WebSocket | null>(null);
     const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
 
-    // WebRTC Configuration
     const rtcConfig = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -29,7 +22,6 @@ export default function VideoCall() {
         ]
     };
 
-    // Initialize WebSocket connection
     useEffect(() => {
         setupWebSocket();
         return () => {
@@ -38,7 +30,7 @@ export default function VideoCall() {
     }, []);
 
     const setupWebSocket = () => {
-        wsRef.current = new WebSocket('ws://localhost:8000/ws');
+        wsRef.current = new WebSocket(WS_URL);
 
         wsRef.current.onopen = () => {
             console.log('WebSocket Connected');
@@ -48,6 +40,7 @@ export default function VideoCall() {
         wsRef.current.onclose = () => {
             console.log('WebSocket Disconnected');
             setIsConnected(false);
+            setTimeout(setupWebSocket, 3000);
         };
 
         wsRef.current.onerror = (error) => {
@@ -83,7 +76,6 @@ export default function VideoCall() {
             const pc = new RTCPeerConnection(rtcConfig);
             peerConnectionRef.current = pc;
 
-            // Handle ICE candidates
             pc.onicecandidate = (event) => {
                 if (event.candidate) {
                     sendMessage({
@@ -94,19 +86,16 @@ export default function VideoCall() {
                 }
             };
 
-            // Handle connection state changes
             pc.onconnectionstatechange = () => {
                 setConnectionStatus(pc.connectionState);
             };
 
-            // Handle receiving remote stream
             pc.ontrack = (event) => {
                 if (remoteVideoRef.current && event.streams[0]) {
                     remoteVideoRef.current.srcObject = event.streams[0];
                 }
             };
 
-            // Add local stream if it exists
             if (localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach(track => {
                     if (localStreamRef.current) {
@@ -151,17 +140,14 @@ export default function VideoCall() {
         }
 
         try {
-            // Start local stream if not already started
             if (!localStreamRef.current) {
                 await startLocalStream();
             }
 
-            // Create peer connection if not exists
             if (!peerConnectionRef.current) {
                 await createPeerConnection();
             }
 
-            // Create and send offer
             const offer = await peerConnectionRef.current?.createOffer({
                 offerToReceiveAudio: true,
                 offerToReceiveVideo: true,
@@ -187,7 +173,6 @@ export default function VideoCall() {
 
             await peerConnectionRef.current?.setRemoteDescription(new RTCSessionDescription(offer));
 
-            // Create and send answer
             const answer = await peerConnectionRef.current?.createAnswer();
             await peerConnectionRef.current?.setLocalDescription(answer);
 
@@ -240,13 +225,11 @@ export default function VideoCall() {
     };
 
     const cleanup = () => {
-        // Stop all tracks in local stream
         localStreamRef.current?.getTracks().forEach(track => track.stop());
 
-        // Close peer connection
         peerConnectionRef.current?.close();
 
-        // Close WebSocket connection
+
         wsRef.current?.close();
     };
 
